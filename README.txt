@@ -43,3 +43,4 @@ The kind of scenarios I use are :
    - When the disk volume is off, then the raid drive relay device is set off.
    
 More on the indigo Forum : http://forums.indigodomo.com/viewtopic.php?f=162&t=13678
+
