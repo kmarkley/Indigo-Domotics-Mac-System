@@ -27,8 +27,11 @@ from bipIndigoFramework import core
 from bipIndigoFramework import osascript
 from bipIndigoFramework import shellscript
 import re
-import pipes
-
+# a little future-proofing:
+try:
+    from shlex import quote as cmd_quote
+except ImportError:
+    from pipes import quote as cmd_quote
 
 
 # Note the "indigo" module is automatically imported and made available inside
@@ -37,6 +40,10 @@ import pipes
 _repProcessStatus = re.compile(r" *([0-9]+) +(.).+$")
 _repProcessData = re.compile(r"(.+?)  +([0-9.,]+) +([0-9.,]+) +(.+)$")
 _repVolumeData2 = re.compile(r".+? [0-9]+ +([0-9]+) +([0-9]+) .+")
+_repVolumeData3 = re.compile(r".+? ([0-9\.]+[A-Z]) +([0-9\.]+[A-Z]) +([0-9\.]+[A-Z]) +([0-9]+%) .+")
+
+# change smb to smbfs, but also throw an error if mount command doesn't support filesystem
+_fileSystems = {u'smb':u'smbfs',u'nfs':u'nfs',u'afp':u'afp',u'ftp':u'ftp',u'webdav':u'webdav'}
 
 def init():
     osascript.init()
@@ -58,7 +65,7 @@ def getProcessStatus(thedevice, thevaluesDict):
             success: True if success, False if not
             thevaluesDict updated with new data if success, equals to the input if not
     """
-    pslist = shellscript.run(u"ps -awxc -opid,state,args | egrep %s" % (pipes.quote(u' ' + thedevice.pluginProps[u'ApplicationProcessName']+u'$')),_repProcessStatus,[u'ProcessID',u'PStatus'])
+    pslist = shellscript.run(u"ps -awxc -opid,state,args | egrep %s" % (cmd_quote(u' ' + thedevice.pluginProps[u'ApplicationProcessName']+u'$')),_repProcessStatus,[u'ProcessID',u'PStatus'])
 
     if pslist[u'ProcessID']==u'':
         thevaluesDict[u'onOffState']=False
@@ -123,12 +130,17 @@ def getVolumeStatus(thedevice, thevaluesDict):
             thevaluesDict updated with new data if success, equals to the input if not
     """
     # check if mounted
-    if shellscript.run(u"ls -1 /Volumes | grep %s" % (pipes.quote(u'^'+thedevice.pluginProps[u'VolumeID']+u'$')))>'':
+    if thedevice.deviceTypeId  == u'bip.ms.volume':
+        theScript = u"ls -1 /Volumes | grep %s" % (cmd_quote(u'^'+thedevice.pluginProps[u'VolumeID']+u'$'))
+    elif thedevice.deviceTypeId  == u'bip.ms.nas':
+        theScript = u"/bin/df -Hn | grep %s" % (cmd_quote(u"/Volumes/"+thedevice.pluginProps[u'VolumeID']+u'$'))
+
+    if shellscript.run(theScript)>'':
         thevaluesDict[u'onOffState']=True
         thevaluesDict[u'VStatus']="on"
     else:
         thevaluesDict[u'onOffState']=False
-
+    
     return (True,thevaluesDict)
 
 def getVolumeData(thedevice, thevaluesDict):
@@ -141,22 +153,31 @@ def getVolumeData(thedevice, thevaluesDict):
             success: True if success, False if not
             thevaluesDict updated with new data if success, equals to the input if not
         """
-    pslist = shellscript.run(u"/usr/sbin/diskutil list | grep %s" % (pipes.quote(u' '+thedevice.pluginProps[u'VolumeID']+u'  ')),[(6,32),(57,67),(68,-1)],[u'VolumeType',u'VolumeSize',u'VolumeDevice'])
-
+    if thedevice.deviceTypeId  == u'bip.ms.volume':
+        pslist = shellscript.run(u"/usr/sbin/diskutil list | grep %s" % (cmd_quote(u' '+thedevice.pluginProps[u'VolumeID']+u'  ')),[(6,32),(68,-1)],[u'VolumeType',u'VolumeDevice'])
+        dfGrepTerm = u'^/dev/%s' % (pslist[u'VolumeDevice'])
+    elif thedevice.deviceTypeId  == u'bip.ms.nas':
+        pslist = {u'VolumeType': _fileSystems[thedevice.pluginProps[u'VolumeURL'].split(':')[0]], u'VolumeDevice': thedevice.pluginProps['VolumeURL']}
+        dfGrepTerm = '/Volumes/%s$' % (thedevice.pluginProps[u'VolumeID'])
+    
     if pslist[u'VolumeDevice']=='':
         thevaluesDict[u'onOffState']=False
         thevaluesDict[u'VStatus']=u'off'
     else:
         thevaluesDict.update(pslist)
         # find free space
-        pslist = shellscript.run(u"/bin/df | grep '%s'" % (thevaluesDict[u'VolumeDevice']),_repVolumeData2,[u'Used','Available'])
+        pslist = shellscript.run(u"/bin/df -Hn | grep %s" % (cmd_quote(dfGrepTerm)),_repVolumeData3,[u'Size',u'Used',u'Available',u'Capacity'])
         if pslist[u'Used'] !=u'':
-            thevaluesDict[u'pcUsed']= (int(pslist[u'Used'])*100)/(int(pslist[u'Used']) + int(pslist[u'Available']))
+            indigo.server.log(pslist[u'Used'])
+            thevaluesDict[u'VolumeSize'] = pslist[u'Size'] 
+            thevaluesDict[u'pcUsed']= int(pslist[u'Capacity'][:-1])
             thevaluesDict[u'onOffState']=True
             thevaluesDict[u'VStatus']=u'on'
         else:
             thevaluesDict[u'onOffState']=False
             thevaluesDict[u'VStatus']=u'notmounted'
+            if thedevice.deviceTypeId  == u'bip.ms.nas':
+                shellscript.run(u"/bin/rmdir %s 2>/dev/null" % (cmd_quote(u"/Volumes/"+thedevice.pluginProps[u'VolumeID'])))
 
     return (True,thevaluesDict)
 
@@ -173,7 +194,7 @@ def spinVolume(thedevice, thevaluesDict):
         """
 
     if (thedevice.states[u'VStatus']==u'on') and (thedevice.pluginProps[u'keepAwaken']):
-        psvalue = shellscript.run(u"touch %s" % (pipes.quote(u'/Volumes/'+thedevice.pluginProps[u'VolumeID']+u'/.spinner')))
+        psvalue = shellscript.run(u"touch %s" % (cmd_quote(u'/Volumes/'+thedevice.pluginProps[u'VolumeID']+u'/.spinner')))
         if psvalue is None:
             return (False, thevaluesDict)
         else:

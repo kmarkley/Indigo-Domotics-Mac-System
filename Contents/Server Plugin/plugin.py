@@ -73,6 +73,8 @@
                 Some bugs corrections, including:
                  - daemon start argument is not mandatory
                  - daemon search in ps command is more accurate
+    Rev 2.0.2 : Support for network drives - 10 december 2016 - by kmarkley
+
 
 """
 ####################################################################################
@@ -85,8 +87,11 @@ from bipIndigoFramework import osascript
 from bipIndigoFramework import relaydimmer
 import interface
 import re
-import pipes
-
+# a little future-proofing:
+try:
+    from shlex import quote as cmd_quote
+except ImportError:
+    from pipes import quote as cmd_quote
 
 # Note the "indigo" module is automatically imported and made available inside
 # our global name space by the host process.
@@ -141,7 +146,7 @@ class Plugin(indigo.PluginBase):
                         u'directoryPath':(dev.pluginProps[u'ApplicationPathName'])[:-5-len(dev.pluginProps[u'ApplicationID'])],
                         u'windowcloseScript':u'Tell application "' + dev.pluginProps[u'ApplicationID'] + u'" to close every window',
                         u'ApplicationStopPathName':u'tell application "'+ dev.pluginProps[u'ApplicationID'] + u'" to quit',
-                        u'ApplicationStartPathName':u'open ' + pipes.quote(dev.pluginProps[u'ApplicationPathName'])})
+                        u'ApplicationStartPathName':u'open ' + cmd_quote(dev.pluginProps[u'ApplicationPathName'])})
 
         core.logger(traceLog = (u'end of "%s" deviceStartComm'  % (dev.name)))
 
@@ -231,7 +236,7 @@ class Plugin(indigo.PluginBase):
                     ##########
                     # Volume device
                     ########################
-                    elif (thedevice.deviceTypeId ==u'bip.ms.volume') and thedevice.configured and thedevice.enabled:
+                    elif (thedevice.deviceTypeId  in (u'bip.ms.volume',u'bip.ms.nas')) and thedevice.configured and thedevice.enabled:
                          # states
                         (success,thevaluesDict) = interface.getVolumeStatus(thedevice, thevaluesDict)
                         # spin if needed
@@ -291,18 +296,34 @@ class Plugin(indigo.PluginBase):
         ##########
         # Volume device
         ########################
-        elif (dev.deviceTypeId ==u'bip.ms.volume'):
+        elif (dev.deviceTypeId == u'bip.ms.volume'):
             if (theactionid == indigo.kDimmerRelayAction.TurnOn) and (dev.states[u'VStatus']==u'notmounted'):
-                shellscript.run(u"/usr/sbin/diskutil mount %s" % (dev.states[u'VolumeDevice']))
-            # status update will be done by runConcurrentThread
+                shellscript.run(u"/usr/sbin/diskutil mount %s" % (cmd_quote(dev.states[u'VolumeDevice'])))
+                # status update will be done by runConcurrentThread
 
             elif (theactionid == indigo.kDimmerRelayAction.TurnOff):
                 if dev.pluginProps[u'forceQuit']:
-                    shellscript.run(u"/usr/sbin/diskutil umount force %s" % (dev.states[u'VolumeDevice']))
+                    shellscript.run(u"/usr/sbin/diskutil umount force %s" % (cmd_quote(dev.states[u'VolumeDevice'])))
                     # status update will be done by runConcurrentThread
                 else:
-                    shellscript.run(u"/usr/sbin/diskutil umount %s" % (dev.states[u'VolumeDevice']))
+                    shellscript.run(u"/usr/sbin/diskutil umount %s" % (cmd_quote(dev.states[u'VolumeDevice'])))
                     # status update will be done by runConcurrentThread
+
+
+        elif (dev.deviceTypeId == u'bip.ms.nas'):
+            mountPath = u'/Volumes/%s' % (dev.pluginProps[u'VolumeID'])
+            if (theactionid == indigo.kDimmerRelayAction.TurnOn) and (dev.states[u'VStatus']==u'notmounted'):
+                shellscript.run(u"/bin/mkdir %s 2>/dev/null; /sbin/mount -t %s %s %s 2>/dev/null" % (cmd_quote(mountPath), dev.states[u'VolumeType'], cmd_quote(dev.pluginProps[u'VolumeURL']), cmd_quote(mountPath)))
+                # status update will be done by runConcurrentThread
+
+            elif (theactionid == indigo.kDimmerRelayAction.TurnOff):
+                if dev.pluginProps[u'forceQuit']:
+                    shellscript.run(u"/sbin/umount -f %s" % (cmd_quote(mountPath)))
+                    # status update will be done by runConcurrentThread
+                else:
+                    shellscript.run(u"/sbin/umount %s" % (cmd_quote(mountPath)))
+                    # status update will be done by runConcurrentThread
+                shellscript.run(u"/bin/rmdir %s 2>/dev/null" % (cmd_quote(mountPath)))
 
 
     ########################################
@@ -353,7 +374,7 @@ class Plugin(indigo.PluginBase):
                 valuesDict[u'directoryPath'] = (valuesDict[u'directoryPath'])[:-1]
             
             valuesDict[u'ApplicationPathName'] = valuesDict[u'directoryPath'] + u'/' + valuesDict[u'ApplicationID'] + u'.app'
-            valuesDict[u'ApplicationStartPathName'] = u'open %s' % (pipes.quote(valuesDict[u'ApplicationPathName']))
+            valuesDict[u'ApplicationStartPathName'] = u'open %s' % (cmd_quote(valuesDict[u'ApplicationPathName']))
 
             if typeId in (u'bip.ms.application'):
                 valuesDict[u'ApplicationStopPathName'] = u'tell application "'+ valuesDict[u'ApplicationID'] + u'" to quit'
@@ -367,13 +388,13 @@ class Plugin(indigo.PluginBase):
         # daemons
         if typeId in (u'bip.ms.daemon'):
             valuesDict[u'ApplicationProcessName'] = valuesDict[u'ApplicationID'] + u' +' + valuesDict[u'ApplicationStartArgument']
-            valuesDict[u'ApplicationStartPathName'] = pipes.quote(valuesDict[u'ApplicationPathName']) + u' ' + valuesDict[u'ApplicationStartArgument']
+            valuesDict[u'ApplicationStartPathName'] = cmd_quote(valuesDict[u'ApplicationPathName']) + u' ' + valuesDict[u'ApplicationStartArgument']
 
             if len(valuesDict[u'ApplicationStopPathName'])==0:
                 valuesDict[u'forceQuit'] = True
             else:
                 valuesDict[u'forceQuit'] = False
-                valuesDict[u'ApplicationStopPathName'] = pipes.quote(valuesDict[u'ApplicationPathName']) + u' ' + valuesDict[u'ApplicationStopArgument']
+                valuesDict[u'ApplicationStopPathName'] = cmd_quote(valuesDict[u'ApplicationPathName']) + u' ' + valuesDict[u'ApplicationStopArgument']
 
         core.dumpdict(valuesDict,u'output value dict %s is %s', level=core.MSG_STATES_DEBUG)
         core.logger(traceLog = u'end of validating Device Config')

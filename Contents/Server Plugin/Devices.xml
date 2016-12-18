@@ -57,6 +57,70 @@
             </State>
         </States>
 	</Device>
+	<Device type="relay" id="bip.ms.nas">
+		<Name>Network Volume</Name>
+		<ConfigUI>
+			<Field id="VolumeID" type="textfield">
+				<Label>Volume name:</Label>
+			</Field>
+			<Field id="VolumeURL" type="textfield">
+				<Label>Volume URL:</Label>
+			</Field>
+			<Field id="urllabel" type="label">
+			    <Label>     		        	          Embed 'user:pass@' if authentication required</Label>
+            </Field>
+            <Field id="simpleSeparator1" type="separator"/>
+            <Field type="checkbox" id="forceQuit">
+                <Label>Use forced unmount:</Label>
+                <Description>(can result in loss of data)</Description>
+            </Field>
+            <Field type="checkbox" id="keepAwaken">
+                <Label>Keep this disk awaken:</Label>
+                <Description>(avoid going to sleep)</Description>
+            </Field>
+		</ConfigUI>
+        <States>
+            <!-- By default relay type devices automatically inherit the
+             state: onOffState.
+            -->
+            <State id="VStatus">
+                <ValueType>
+                    <List>
+                        <Option value="on">On</Option>
+                        <Option value="notmounted">Not mounted</Option>
+                        <Option value="off">Off</Option>
+                    </List>
+                </ValueType>
+                <TriggerLabel>Volume Status</TriggerLabel>
+                <ControlPageLabel>Volume Status</ControlPageLabel>
+            </State>
+            <State id="VolumeType">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Volume type</TriggerLabel>
+                <ControlPageLabel>Volume type</ControlPageLabel>
+            </State>
+            <State id="VolumeSize">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Volume size</TriggerLabel>
+                <ControlPageLabel>Volume size</ControlPageLabel>
+            </State>
+            <State id="VolumeDevice">
+                <ValueType>String</ValueType>
+                <TriggerLabel>Volume device</TriggerLabel>
+                <ControlPageLabel>Volume device</ControlPageLabel>
+            </State>
+            <State id="LastPing">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>Last awake ping time</TriggerLabel>
+                <ControlPageLabel>Last awake ping time</ControlPageLabel>
+            </State>
+            <State id="pcUsed">
+                <ValueType>Number</ValueType>
+                <TriggerLabel>Used percentage</TriggerLabel>
+                <ControlPageLabel>Used percentage</ControlPageLabel>
+            </State>
+        </States>
+	</Device>
     <Device type="relay" id="bip.ms.application">
         <Name>Application</Name>
         <ConfigUI>
