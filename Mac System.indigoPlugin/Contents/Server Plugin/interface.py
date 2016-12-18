@@ -168,7 +168,6 @@ def getVolumeData(thedevice, thevaluesDict):
         # find free space
         pslist = shellscript.run(u"/bin/df -Hn | grep %s" % (cmd_quote(dfGrepTerm)),_repVolumeData3,[u'Size',u'Used',u'Available',u'Capacity'])
         if pslist[u'Used'] !=u'':
-            indigo.server.log(pslist[u'Used'])
             thevaluesDict[u'VolumeSize'] = pslist[u'Size'] 
             thevaluesDict[u'pcUsed']= int(pslist[u'Capacity'][:-1])
             thevaluesDict[u'onOffState']=True
