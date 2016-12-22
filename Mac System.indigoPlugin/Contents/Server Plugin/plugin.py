@@ -120,6 +120,8 @@ class Plugin(indigo.PluginBase):
         interface.init()
         corethread.init()
         core.dumppluginproperties()
+        self.deviceList = []
+            
 
         core.logger(traceLog = u'end of startup')
 
@@ -148,6 +150,8 @@ class Plugin(indigo.PluginBase):
                         u'ApplicationStopPathName':u'tell application "'+ dev.pluginProps[u'ApplicationID'] + u'" to quit',
                         u'ApplicationStartPathName':u'open ' + cmd_quote(dev.pluginProps[u'ApplicationPathName'])})
 
+        if dev.id not in self.deviceList:
+            self.deviceList.append(dev.id)
         core.logger(traceLog = (u'end of "%s" deviceStartComm'  % (dev.name)))
 
     def deviceStopComm(self, dev):
@@ -155,6 +159,8 @@ class Plugin(indigo.PluginBase):
         core.dumpdeviceproperties(dev)
         core.dumpdevicestates(dev)
         core.logger(traceLog = u'end of "%s" deviceStopComm'  % (dev.name))
+        if dev.id in self.deviceList:
+            self.deviceList.remove(dev.id)
 
 
     ########################################
@@ -206,8 +212,9 @@ class Plugin(indigo.PluginBase):
                 # test if time to read full data
                 timeToReadVolumeData = readVolumeData.isTime()
                 timeToReadApplicationData = readApplicationData.isTime()
-
-                for thedevice in indigo.devices.iter(u'self'):
+                
+                for devId in self.deviceList:
+                    thedevice = indigo.devices[devId]
                     thevaluesDict = {}
 
                     ##########
@@ -254,7 +261,7 @@ class Plugin(indigo.PluginBase):
                         if timeToReadVolumeData or corethread.isUpdateRequested(thedevice):
                             (success,thevaluesDict) = interface.getVolumeData(thedevice, thevaluesDict)
                             core.updatestates(thedevice, thevaluesDict)
-
+                    
                 # wait
                 corethread.sleepNext(10) # in seconds
         except self.StopThread:
