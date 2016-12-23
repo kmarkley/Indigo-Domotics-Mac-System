@@ -370,8 +370,6 @@ def upgradeDeviceProperties(thedevice, theUpgradePropertyDict):
         thedevice.replacePluginPropsOnServer(pluginPropsCopy)
         dumpdict(theupdatedict, u'"' + thedevice.name + u'" property %s created with value %s',level=MSG_DEBUG)
         logger(msgLog=u'"%s" new properties added' % thedevice.name)
-    else:
-        logger(msgLog=u'"%s" property list is up to date' % thedevice.name)
 
     return theupdatedict
 
@@ -399,6 +397,4 @@ def upgradeDeviceStates(thedevice, theUpgradeStatesList):
         thedevice.stateListOrDisplayStateIdChanged();
         dumplist(theupdatelist, u'"%s" states added' % (thedevice.name),level=MSG_DEBUG)
         logger(msgLog=u'"%s" new states added' % thedevice.name)
-    else:
-        logger(msgLog=u'"%s" state list is up to date' % thedevice.name)
     return theupdatelist
