@@ -120,7 +120,7 @@ class Plugin(indigo.PluginBase):
         interface.init()
         corethread.init()
         core.dumppluginproperties()
-        self.deviceList = []
+        self.deviceDict = dict()
             
 
         core.logger(traceLog = u'end of startup')
@@ -150,8 +150,8 @@ class Plugin(indigo.PluginBase):
                         u'ApplicationStopPathName':u'tell application "'+ dev.pluginProps[u'ApplicationID'] + u'" to quit',
                         u'ApplicationStartPathName':u'open ' + cmd_quote(dev.pluginProps[u'ApplicationPathName'])})
 
-        if dev.id not in self.deviceList:
-            self.deviceList.append(dev.id)
+        if dev.id not in self.deviceDict:
+            self.deviceDict[dev.id] = dev
         core.logger(traceLog = (u'end of "%s" deviceStartComm'  % (dev.name)))
 
     def deviceStopComm(self, dev):
@@ -159,8 +159,8 @@ class Plugin(indigo.PluginBase):
         core.dumpdeviceproperties(dev)
         core.dumpdevicestates(dev)
         core.logger(traceLog = u'end of "%s" deviceStopComm'  % (dev.name))
-        if dev.id in self.deviceList:
-            self.deviceList.remove(dev.id)
+        if dev.id in self.deviceDict:
+            del self.deviceDict[dev.id]
 
 
     ########################################
@@ -213,8 +213,7 @@ class Plugin(indigo.PluginBase):
                 timeToReadVolumeData = readVolumeData.isTime()
                 timeToReadApplicationData = readApplicationData.isTime()
                 
-                for devId in self.deviceList:
-                    thedevice = indigo.devices[devId]
+                for devId, thedevice in self.deviceDict.items():
                     thevaluesDict = {}
 
                     ##########
@@ -320,7 +319,7 @@ class Plugin(indigo.PluginBase):
         elif (dev.deviceTypeId == u'bip.ms.nas'):
             mountPath = u'/Volumes/%s' % (dev.pluginProps[u'VolumeID'])
             if (theactionid == indigo.kDimmerRelayAction.TurnOn) and (dev.states[u'VStatus']==u'notmounted'):
-                shellscript.run(u"/bin/mkdir %s 2>/dev/null; /sbin/mount -t %s %s %s 2>/dev/null" % (cmd_quote(mountPath), dev.states[u'VolumeType'], cmd_quote(dev.pluginProps[u'VolumeURL']), cmd_quote(mountPath)))
+                shellscript.run(u"/bin/mkdir %s 2>/dev/null; /sbin/mount -t %s %s %s" % (cmd_quote(mountPath), dev.states[u'VolumeType'], cmd_quote(dev.pluginProps[u'VolumeURL']), cmd_quote(mountPath)))
                 # status update will be done by runConcurrentThread
 
             elif (theactionid == indigo.kDimmerRelayAction.TurnOff):
