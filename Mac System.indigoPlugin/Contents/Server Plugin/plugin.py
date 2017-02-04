@@ -74,6 +74,7 @@
                  - daemon start argument is not mandatory
                  - daemon search in ps command is more accurate
     Rev 2.0.2 : Support for network drives - 10 december 2016 - by kmarkley
+    Rev 2.0.3 : fix grep term for extraneous args in ps - by kmarkley
 
 
 """

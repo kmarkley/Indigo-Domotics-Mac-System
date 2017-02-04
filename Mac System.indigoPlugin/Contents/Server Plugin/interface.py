@@ -65,7 +65,8 @@ def getProcessStatus(thedevice, thevaluesDict):
             success: True if success, False if not
             thevaluesDict updated with new data if success, equals to the input if not
     """
-    pslist = shellscript.run(u"ps -awxc -opid,state,args | egrep %s" % (cmd_quote(u' ' + thedevice.pluginProps[u'ApplicationProcessName']+u'$')),_repProcessStatus,[u'ProcessID',u'PStatus'])
+    repProcessName = u' ' + thedevice.pluginProps[u'ApplicationProcessName']+u'( -psn[0-9_]*)*$'
+    pslist = shellscript.run(u"ps -awxc -opid,state,args | egrep %s" % (cmd_quote(repProcessName)),_repProcessStatus,[u'ProcessID',u'PStatus'])
 
     if pslist[u'ProcessID']==u'':
         thevaluesDict[u'onOffState']=False
